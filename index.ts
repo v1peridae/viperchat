@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.75.0/http/server.ts";
 import { acceptWebSocket, WebSocket } from "https://deno.land/std@0.75.0/ws/mod.ts";
 
-const server = serve({ port: 8080 });
+const server = serve({ port: 8000 });
 console.log(`Server is running on http://localhost:8080/`);
 
 let users: WebSocket[] = [];
@@ -9,7 +9,6 @@ let users: WebSocket[] = [];
 for await (const req of server) {
   try {
     if (req.url === "/assets/viperchat.png") {
-      // Serve the image
       try {
         const img = await Deno.readFile('./assets/viperchat.png');
         const headers = new Headers();
@@ -20,7 +19,6 @@ for await (const req of server) {
         req.respond({ status: 404, body: "Image not found" });
       }
     } else if (req.url === "/ws") {
-      // Handle WebSocket connection
       try {
         const { conn, r: bufReader, w: bufWriter, headers } = req;
         const socket = await acceptWebSocket({
@@ -36,7 +34,7 @@ for await (const req of server) {
         req.respond({ status: 400 });
       }
     } else {
-      // Serve other static files or handle other routes
+//Co-Pilot helped me with this part
       try {
         const filePath = req.url === "/" ? "/index.html" : req.url;
         const data = await Deno.readTextFile(`.${filePath}`);
@@ -74,7 +72,7 @@ async function handleWs(socket: WebSocket) {
             try {
               user.send(JSON.stringify(parsedEvent));
               return true;
-            } catch { // User closed connection
+            } catch { 
               return false;
             }
           });
