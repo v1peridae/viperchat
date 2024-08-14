@@ -14,7 +14,7 @@ for await (const req of server) {
       const headers = new Headers();
       headers.set('content-type', 'image/png');
       req.respond({ headers, body: img, status: 200 });
-    } catch (error) {
+    } catch (_error) {
       req.respond({ status: 404, body: "Image not found" });
     }
   } else if (req.url === "/ws") {
