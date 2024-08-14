@@ -6,9 +6,6 @@ for await (const req of serve({ port: 80 })) {
 
   const head = new Headers();
   head.set('content-type', 'image/png');
-
-  req.respond({ headers: head, body: img, status: 200 });
-
 }
 
 const server = serve(":8080")
