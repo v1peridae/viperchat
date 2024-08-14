@@ -1,6 +1,16 @@
 import { serve } from "https://deno.land/std@0.75.0/http/server.ts"
 import { acceptWebSocket, WebSocket } from "https://deno.land/std@0.75.0/ws/mod.ts"
 
+for await (const req of serve({ port: 80 })) {
+  const img = await Deno.readFile('./assets/viperchat.png');
+
+  const head = new Headers();
+  head.set('content-type', 'image/png');
+
+  req.respond({ headers: head, body: img, status: 200 });
+
+}
+
 const server = serve(":8080")
 console.log(`Chat server is running on 8080`)
 
