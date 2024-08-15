@@ -1,56 +1,91 @@
-const handler = async (req: Request): Promise<Response> => {
-  console.log(`Incoming request: ${req.method} ${req.url}`);
+import { serve } from "https://deno.land/std@0.75.0/http/server.ts";
+import { acceptWebSocket, WebSocket } from "https://deno.land/std@0.75.0/ws/mod.ts";
 
+const server = serve({ port: 8000 });
+console.log(`Server is running on http://localhost:8080/`);
+
+let users: WebSocket[] = [];
+
+for await (const req of server) {
   try {
-    const url = new URL(req.url);
-
-    console.log(`Parsed URL: ${url.pathname}`);
-
-    if (url.pathname === "/assets/viperchat.png") {
+    if (req.url === "/assets/viperchat.png") {
       try {
         const img = await Deno.readFile('./assets/viperchat.png');
         const headers = new Headers();
         headers.set('content-type', 'image/png');
-        return new Response(img, { headers, status: 200 });
+        req.respond({ headers, body: img, status: 200 });
       } catch (_error) {
         console.error("Error serving image:", _error);
-        return new Response("Image not found", { status: 404 });
+        req.respond({ status: 404, body: "Image not found" });
       }
-    } else if (url.pathname === "/ws") {
-      const { response, socket } = Deno.upgradeWebSocket(req);
-      handleWs(socket);
-      return response;
+    } else if (req.url === "/ws") {
+      try {
+        const { conn, r: bufReader, w: bufWriter, headers } = req;
+        const socket = await acceptWebSocket({
+          conn,
+          bufReader,
+          bufWriter,
+          headers,
+        });
+
+        handleWs(socket);
+      } catch (err) {
+        console.error(`Failed to accept WebSocket: ${err}`);
+        req.respond({ status: 400 });
+      }
     } else {
-      console.log("Path not found");
-      return new Response("Not Found", { status: 404 });
+//Co-Pilot helped me with this part
+      try {
+        const filePath = req.url === "/" ? "/index.html" : req.url;
+        const data = await Deno.readTextFile(`.${filePath}`);
+        req.respond({ status: 200, body: data });
+      } catch (_error) {
+        console.error("Error serving file:", _error);
+        req.respond({ status: 404, body: "Not found" });
+      }
     }
   } catch (err) {
-    console.error(`Error handling request: ${err}`);
-    return new Response("Internal Server Error", { status: 500 });
+    console.error("Unhandled error:", err);
+    req.respond({ status: 500, body: "Internal Server Error" });
   }
-};
+}
 
-Deno.serve({ port: 8000 }, handler);
-console.log(`Server is running on http://localhost:8000/`);
+async function handleWs(socket: WebSocket) {
+  try {
+    for await (const event of socket) {
+      if (typeof event === "string") {
+        const parsedEvent = JSON.parse(event);
+        if (parsedEvent.type === "open") {
+          console.log("Connection established with a client.");
+          users.push(socket);
 
-let users: WebSocket[] = [];
-
-function handleWs(socket: WebSocket) {
-  users.push(socket);
-  socket.onmessage = (event) => {
-    console.log("Message from client:", event.data);
-    // Broadcast message to all connected users
-    for (const user of users) {
-      user.send(event.data);
+          await socket.send(JSON.stringify({
+            type: "message",
+            data: {
+              name: "Automatic",
+              message: "Welcome (back) to viperchat",
+            }
+          }));
+        } else if (parsedEvent.type === "message") {
+          console.dir(parsedEvent);
+          users = users.filter(user => {
+            try {
+              user.send(JSON.stringify(parsedEvent));
+              return true;
+            } catch { 
+              return false;
+            }
+          });
+          console.log(`There ${users.length === 1 ? "is" : "are"} ${users.length} ${users.length === 1 ? "user" : "users"} online`);
+        }
+      }
     }
-  };
-
-  socket.onclose = () => {
-    users = users.filter((user) => user !== socket);
-    console.log("Client disconnected");
-  };
-
-  socket.onerror = (err) => {
+  } catch (err) {
     console.error("WebSocket error:", err);
-  };
+    try {
+      socket.close(1000, "Internal Server Error");
+    } catch (closeErr) {
+      console.error("Error closing WebSocket:", closeErr);
+    }
+  }
 }
