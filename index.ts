@@ -1,8 +1,5 @@
-import { serve } from "https://deno.land/std@0.75.0/http/server.ts";
-import { acceptWebSocket, WebSocket } from "https://deno.land/std@0.75.0/ws/mod.ts";
-
-const server = serve({ port: 8000 });
-console.log(`Server is running on http://localhost:8080/`);
+const server = Deno.serve({ port: 8000 });
+console.log(`Server is running on http://localhost:8000/`);
 
 let users: WebSocket[] = [];
 
@@ -19,73 +16,34 @@ for await (const req of server) {
         req.respond({ status: 404, body: "Image not found" });
       }
     } else if (req.url === "/ws") {
-      try {
-        const { conn, r: bufReader, w: bufWriter, headers } = req;
-        const socket = await acceptWebSocket({
-          conn,
-          bufReader,
-          bufWriter,
-          headers,
-        });
-
-        handleWs(socket);
-      } catch (err) {
-        console.error(`Failed to accept WebSocket: ${err}`);
-        req.respond({ status: 400 });
-      }
+      const { response, socket } = Deno.upgradeWebSocket(req);
+      req.respond(response);
+      handleWs(socket);
     } else {
-//Co-Pilot helped me with this part
-      try {
-        const filePath = req.url === "/" ? "/index.html" : req.url;
-        const data = await Deno.readTextFile(`.${filePath}`);
-        req.respond({ status: 200, body: data });
-      } catch (_error) {
-        console.error("Error serving file:", _error);
-        req.respond({ status: 404, body: "Not found" });
-      }
+      req.respond({ status: 404, body: "Not Found" });
     }
   } catch (err) {
-    console.error("Unhandled error:", err);
+    console.error(`Error handling request: ${err}`);
     req.respond({ status: 500, body: "Internal Server Error" });
   }
 }
 
-async function handleWs(socket: WebSocket) {
-  try {
-    for await (const event of socket) {
-      if (typeof event === "string") {
-        const parsedEvent = JSON.parse(event);
-        if (parsedEvent.type === "open") {
-          console.log("Connection established with a client.");
-          users.push(socket);
+function handleWs(socket: WebSocket) {
+  users.push(socket);
+  socket.onmessage = (event) => {
+    console.log("Message from client:", event.data);
+    // Broadcast message to all connected users
+    for (const user of users) {
+      user.send(event.data);
+    }
+  };
 
-          await socket.send(JSON.stringify({
-            type: "message",
-            data: {
-              name: "Automatic",
-              message: "Welcome (back) to viperchat",
-            }
-          }));
-        } else if (parsedEvent.type === "message") {
-          console.dir(parsedEvent);
-          users = users.filter(user => {
-            try {
-              user.send(JSON.stringify(parsedEvent));
-              return true;
-            } catch { 
-              return false;
-            }
-          });
-          console.log(`There ${users.length === 1 ? "is" : "are"} ${users.length} ${users.length === 1 ? "user" : "users"} online`);
-        }
-      }
-    }
-  } catch (err) {
+  socket.onclose = () => {
+    users = users.filter((user) => user !== socket);
+    console.log("Client disconnected");
+  };
+
+  socket.onerror = (err) => {
     console.error("WebSocket error:", err);
-    try {
-      socket.close(1000, "Internal Server Error");
-    } catch (closeErr) {
-      console.error("Error closing WebSocket:", closeErr);
-    }
-  }
+  };
 }
