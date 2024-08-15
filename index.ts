@@ -4,6 +4,8 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const url = new URL(req.url);
 
+    console.log(`Parsed URL: ${url.pathname}`);
+
     if (url.pathname === "/assets/viperchat.png") {
       try {
         const img = await Deno.readFile('./assets/viperchat.png');
@@ -19,6 +21,7 @@ const handler = async (req: Request): Promise<Response> => {
       handleWs(socket);
       return response;
     } else {
+      console.log("Path not found");
       return new Response("Not Found", { status: 404 });
     }
   } catch (err) {
