@@ -1,6 +1,10 @@
 const handler = async (req: Request): Promise<Response> => {
+  console.log(`Incoming request: ${req.method} ${req.url}`);
+
   try {
-    if (req.url.endsWith("/assets/viperchat.png")) {
+    const url = new URL(req.url);
+
+    if (url.pathname === "/assets/viperchat.png") {
       try {
         const img = await Deno.readFile('./assets/viperchat.png');
         const headers = new Headers();
@@ -10,7 +14,7 @@ const handler = async (req: Request): Promise<Response> => {
         console.error("Error serving image:", _error);
         return new Response("Image not found", { status: 404 });
       }
-    } else if (req.url.endsWith("/ws")) {
+    } else if (url.pathname === "/ws") {
       const { response, socket } = Deno.upgradeWebSocket(req);
       handleWs(socket);
       return response;
@@ -23,7 +27,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
-const server = Deno.serve({ port: 8000 }, handler);
+Deno.serve({ port: 8000 }, handler);
 console.log(`Server is running on http://localhost:8000/`);
 
 let users: WebSocket[] = [];
