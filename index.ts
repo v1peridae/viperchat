@@ -34,7 +34,7 @@ for await (const req of server) {
         req.respond({ status: 400 });
       }
     } else {
-//Co-Pilot helped me with this part
+
       try {
         const filePath = req.url === "/" ? "/index.html" : req.url;
         const data = await Deno.readTextFile(`.${filePath}`);
