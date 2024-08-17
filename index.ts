@@ -1,23 +1,19 @@
-const server = Deno.serve({ port: 8000 });
+import { serve } from "https://deno.land/std@0.75.0/http/server.ts";
+import { acceptWebSocket, WebSocket } from "https://deno.land/std@0.75.0/ws/mod.ts";
 
-console.log(`Server is running on http://localhost:8000/`);
-
-let users: WebSocket[] = [];
-
-for await (const req of server) {
+async function handler(req: Request): Promise<Response> {
   if (req.url === "/assets/viperchat.png") {
     try {
       const img = await Deno.readFile('./assets/viperchat.png');
-      const headers = new Headers();
-      headers.set('content-type', 'image/png');
-      req.respond({ headers, body: img, status: 200 });
+      return new Response(img, {
+        headers: { 'content-type': 'image/png' },
+      });
     } catch (_error) {
       console.error("Error serving image:", _error);
-      req.respond({ status: 404, body: "Image not found" });
+      return new Response("Image not found", { status: 404 });
     }
   } else if (req.url === "/ws") {
     const { socket, response } = Deno.upgradeWebSocket(req);
-
     socket.addEventListener("open", () => {
       console.log("Connection established with a client.");
       users.push(socket);
@@ -38,15 +34,19 @@ for await (const req of server) {
       }
     });
 
-    req.respond(response);
+    return response;
   } else {
     try {
       const filePath = req.url === "/" ? "/index.html" : req.url;
       const data = await Deno.readTextFile(`.${filePath}`);
-      req.respond({ status: 200, body: data });
+      return new Response(data, { status: 200 });
     } catch (_error) {
       console.error("Error serving file:", _error);
-      req.respond({ status: 404, body: "Not found" });
+      return new Response("Not found", { status: 404 });
     }
   }
 }
+
+const server = Deno.serve({ port: 8000, handler });
+
+console.log(`Server is running on http://localhost:8000/`);
